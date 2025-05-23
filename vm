@@ -1,0 +1,90 @@
+#!/bin/bash
+
+##################################################################
+# .--.--.--------. .--------.---.-.-----.---.-.-----.-----.----. #
+# |  |  |        | |        |  _  |     |  _  |  _  |  -__|   _| #
+#  \___/|__|__|__| |__|__|__|___._|__|__|___._|___  |_____|__|   #
+#                                             |_____|            #
+##################################################################
+# Author  : pgarin                                               #
+# Last    : 2025-05-22                                           #
+##################################################################
+
+GCLOUD_ACCOUNT=$(gcloud auth list --format="value(account)")
+([[ "$GCLOUD_ACCOUNT" == "" ]] && echo "Need to login first" && gcloud auth login --update-adc) || echo "Already logged in as '$GCLOUD_ACCOUNT'"
+PROMPT=">: "
+ANY_KEY="Press any key to conitnue..."
+active_vms=""
+CMD="etsywebctl vm"
+VM_NAME=""
+SUB_CMD=""
+
+function update_vm_list {
+  echo "Fetching VM list..."
+  active_vms=$(etsywebctl vm list --user=${GCLOUD_ACCOUNT%%@*})
+}
+
+function print_vm_list {
+  N=0
+  echo "-----------------------------------------------------------------------------------------"
+  while IFS= read -r line 
+  do
+    echo "| $(([[ "$N" == "0" ]] && echo "N") || echo $N ) $line"
+    let "N+=1"
+    echo "-----------------------------------------------------------------------------------------"
+  done <<< "$(echo "$active_vms"|tail -n +2)"
+}
+
+function run_cmd {
+  echo "$CMD $SUB_CMD $VM_NAME"
+  eval "$CMD $SUB_CMD $VM_NAME"
+  read -p "$ANY_KEY"
+  update_vm_list
+}
+
+function select_vm {
+  clear
+  print_vm_list
+  echo "Select the VM to $SUB_CMD"
+  read -p "$PROMPT" CHOICE
+  VM_NAME=$(echo "$active_vms"|tail -n +3|sed -n "$CHOICE"'p'|awk '{print $1}')
+  run_cmd
+}
+
+function prompt_vm_name {
+  clear
+  print_vm_list
+  echo "Please provide a VM name (Not a FQDN)"
+  read -p "$PROMPT" VM_NAME
+  run_cmd
+}
+
+function main_loop {
+  clear
+  
+  print_vm_list
+  echo "VM manager"
+  echo "1. Start a VM"
+  echo "2. Stop a VM"
+  echo "3. Create a VM"
+  echo "4. Delete a VM"
+  echo "r. Reload VM list"
+  echo "q. Exit"
+
+  read -p "$PROMPT" OPTION
+
+  [[ ! $OPTION =~ ^[1234rq]$ ]] && echo "invalid option" && read -p "$ANY_KEY" && main_loop && return
+
+  [[ "$OPTION" == "1" ]] && SUB_CMD="start" 
+  [[ "$OPTION" == "2" ]] && SUB_CMD="stop" 
+  [[ "$OPTION" == "3" ]] && SUB_CMD="create" 
+  [[ "$OPTION" == "4" ]] && SUB_CMD="delete" 
+  [[ "$OPTION" == "r" ]] && update_vm_list && main_loop && return
+  [[ "$OPTION" == "q" ]] && exit
+  ([[ $OPTION =~ ^[124]$ ]] && select_vm) || prompt_vm_name
+
+  main_loop && return
+}
+
+update_vm_list
+main_loop
