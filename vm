@@ -10,14 +10,20 @@
 # Last    : 2025-05-22                                           #
 ##################################################################
 
-GCLOUD_ACCOUNT=$(gcloud auth list --format="value(account)")
-([[ "$GCLOUD_ACCOUNT" == "" ]] && echo "Need to login first" && gcloud auth login --update-adc) || echo "Already logged in as '$GCLOUD_ACCOUNT'"
 PROMPT=">: "
 ANY_KEY="Press any key to conitnue..."
 active_vms=""
 CMD="etsywebctl vm"
 VM_NAME=""
 SUB_CMD=""
+
+GCLOUD_ACCOUNT=$(gcloud auth list --format="value(account)")
+function check_account_credentials {
+  ([[ "$GCLOUD_ACCOUNT" == "" ]] && echo "Need to login first" && gcloud auth login --update-adc) || echo "Already logged in as '$GCLOUD_ACCOUNT'"
+  EXPIRED="$(gcloud auth describe  pgarin@etsy.com|grep expired|sed 's/expired: //g')"
+  ([[ "$EXPIRED" == "false" ]] && echo "Session is not expired") || (echo "Session is expired" && read -p "$ANY_KEY" && gcloud auth login --update-adc)
+}
+check_account_credentials
 
 function update_vm_list {
   echo "Fetching VM list..."
